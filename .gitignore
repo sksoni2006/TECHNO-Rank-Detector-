@@ -12,6 +12,7 @@ dist
 dist-ssr
 *.local
 public/rankData.json
+public/users.json
 
 # Editor directories and files
 .vscode/*
