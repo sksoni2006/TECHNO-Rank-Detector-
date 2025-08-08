@@ -7,23 +7,17 @@ const Login = ({ onLogin }) => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      const response = await fetch('/users.json');
-      const users = await response.json();
-      const found = users.find(
-        (u) => u.username === username && u.password === password
-      );
-      if (found) {
-        onLogin();
-      } else {
-        setError('Invalid username or password');
-      }
-    } catch {
-      setError('Unable to verify credentials');
-    }
-  };
+  // In your Login component
+const handleSubmit = (e) => {
+  e.preventDefault();
+  const envUsername = import.meta.env.VITE_USERNAME;
+  const envPassword = import.meta.env.VITE_PASSWORD;
+  if (username === envUsername && password === envPassword) {
+    onLogin();
+  } else {
+    setError('Invalid username or password');
+  }
+};
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
