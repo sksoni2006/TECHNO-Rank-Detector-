@@ -7,21 +7,20 @@ const Login = ({ onLogin }) => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
-  // In your Login component
-const handleSubmit = (e) => {
-  e.preventDefault();
-  const envUsername = import.meta.env.VITE_USERNAME;
-  const envPassword = import.meta.env.VITE_PASSWORD;
-  if (username === envUsername && password === envPassword) {
-    onLogin();
-  } else {
-    setError('Invalid username or password');
-  }
-};
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const envUsername = import.meta.env.VITE_USERNAME;
+    const envPassword = import.meta.env.VITE_PASSWORD;
+    if (username === envUsername && password === envPassword) {
+      onLogin();
+    } else {
+      setError('Invalid username or password');
+    }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
-      <form onSubmit={handleSubmit} className="bg-white p-8 rounded-lg shadow-lg w-full max-w-sm">
+      <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-sm">
         <h2 className="text-2xl font-bold mb-6 text-center text-indigo-700">Login</h2>
         {error && <div className="mb-4 text-red-600 text-center">{error}</div>}
         <div className="mb-4">
@@ -44,12 +43,12 @@ const handleSubmit = (e) => {
           />
         </div>
         <button
-          type="submit"
+          onClick={handleSubmit}
           className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 rounded transition"
         >
           Login
         </button>
-      </form>
+      </div>
     </div>
   );
 };
@@ -97,15 +96,31 @@ const RankDetector = () => {
         setRankData(data);
       } catch (error) {
         console.error('Error loading rank data:', error);
-        // Fallback to default data if JSON fails to load
+        // Fallback to sample data if JSON fails to load
         setRankData({
           'JR': [
-            { score: 5, rank: 1 }
-            
+            { score: 30.22, rank: 1 },
+            { score: 23.95, rank: 2 },
+            { score: 22.08, rank: 3 },
+            { score: 20.15, rank: 4 },
+            { score: 18.75, rank: 5 },
+            { score: 17.22, rank: 6 },
+            { score: 15.88, rank: 7 },
+            { score: 14.33, rank: 8 },
+            { score: 12.95, rank: 9 },
+            { score: 11.42, rank: 10 }
           ],
           'HE': [
-            { score: 5, rank: 1 }
-           
+            { score: 28.45, rank: 1 },
+            { score: 25.12, rank: 2 },
+            { score: 23.88, rank: 3 },
+            { score: 22.15, rank: 4 },
+            { score: 20.95, rank: 5 },
+            { score: 19.33, rank: 6 },
+            { score: 17.88, rank: 7 },
+            { score: 16.22, rank: 8 },
+            { score: 14.75, rank: 9 },
+            { score: 13.12, rank: 10 }
           ]
         });
       } finally {
@@ -253,32 +268,59 @@ const RankDetector = () => {
     return Math.round(baseScore * 100) / 100;
   };
 
+  // FIXED RANK CALCULATION FUNCTION
   const findRank = (score, squad) => {
     const data = rankData?.[squad];
-    if (!data) return 'N/A';
+    if (!data || data.length === 0) return 'N/A';
 
-    // Find the closest score
-    let closestIndex = 0;
-    let minDiff = Math.abs(data[0].score - score);
-
-    for (let i = 1; i < data.length; i++) {
-      const diff = Math.abs(data[i].score - score);
-      if (diff < minDiff) {
-        minDiff = diff;
-        closestIndex = i;
+    // Sort data by score descending (highest score = rank 1)
+    const sortedData = [...data].sort((a, b) => b.score - a.score);
+    
+    // If score is higher than the highest score, return rank 1
+    if (score >= sortedData[0].score) {
+      return 1;
+    }
+    
+    // If score is lower than the lowest score, return last rank + estimate
+    if (score <= sortedData[sortedData.length - 1].score) {
+      // Estimate rank beyond the data
+      const lastEntry = sortedData[sortedData.length - 1];
+      const secondLastEntry = sortedData[sortedData.length - 2] || lastEntry;
+      const scoreGap = secondLastEntry.score - lastEntry.score;
+      const rankGap = lastEntry.rank - secondLastEntry.rank;
+      
+      if (scoreGap > 0) {
+        const scoreDiff = lastEntry.score - score;
+        const estimatedRankIncrease = Math.ceil(scoreDiff / scoreGap * rankGap);
+        return lastEntry.rank + estimatedRankIncrease;
+      } else {
+        return lastEntry.rank + 1;
       }
     }
-
-    // Interpolate rank if score is between two data points
-    if (closestIndex > 0 && score > data[closestIndex].score && score < data[closestIndex - 1].score) {
-      const lower = data[closestIndex];
-      const upper = data[closestIndex - 1];
-      const ratio = (score - lower.score) / (upper.score - lower.score);
-      const interpolatedRank = lower.rank - ratio * (lower.rank - upper.rank);
-      return Math.round(interpolatedRank);
+    
+    // Find the two entries that the score falls between
+    for (let i = 0; i < sortedData.length - 1; i++) {
+      const upper = sortedData[i];     // Higher score (better rank)
+      const lower = sortedData[i + 1]; // Lower score (worse rank)
+      
+      if (score <= upper.score && score >= lower.score) {
+        // Linear interpolation between the two ranks
+        const scoreRange = upper.score - lower.score;
+        const rankRange = lower.rank - upper.rank;
+        
+        if (scoreRange === 0) {
+          return upper.rank;
+        }
+        
+        const ratio = (upper.score - score) / scoreRange;
+        const interpolatedRank = upper.rank + (ratio * rankRange);
+        
+        return Math.round(interpolatedRank);
+      }
     }
-
-    return data[closestIndex].rank;
+    
+    // Fallback - should not reach here
+    return sortedData[sortedData.length - 1].rank + 1;
   };
 
   const calculateScore = () => {
