@@ -93,11 +93,12 @@ const RankDetector = () => {
           throw new Error('Failed to load rank data');
         }
         const data = await response.json();
+        console.log('Loaded rank data successfully:', data);
         setRankData(data);
       } catch (error) {
         console.error('Error loading rank data:', error);
         // Fallback to sample data if JSON fails to load
-        setRankData({
+        const fallbackData = {
           'JR': [
             { score: 30.22, rank: 1 },
             { score: 23.95, rank: 2 },
@@ -122,7 +123,9 @@ const RankDetector = () => {
             { score: 14.75, rank: 9 },
             { score: 13.12, rank: 10 }
           ]
-        });
+        };
+        console.log('Using fallback data:', fallbackData);
+        setRankData(fallbackData);
       } finally {
         setDataLoading(false);
       }
@@ -268,22 +271,37 @@ const RankDetector = () => {
     return Math.round(baseScore * 100) / 100;
   };
 
-  // FIXED RANK CALCULATION FUNCTION
+  // CORRECTED RANK CALCULATION FUNCTION - THE MAIN FIX
   const findRank = (score, squad) => {
     const data = rankData?.[squad];
     if (!data || data.length === 0) return 'N/A';
 
+    console.log('Score to find:', score);
+    console.log('Squad:', squad);
+    console.log('Raw data sample:', data.slice(0, 5));
+
     // Sort data by score descending (highest score = rank 1)
     const sortedData = [...data].sort((a, b) => b.score - a.score);
     
+    // Check for EXACT score matches first - this is the key fix
+    const exactMatches = sortedData.filter(entry => entry.score === score);
+    console.log('Exact matches found:', exactMatches);
+    
+    if (exactMatches.length > 0) {
+      // Return the HIGHEST rank (worst position) for this exact score
+      const highestRank = Math.max(...exactMatches.map(entry => entry.rank));
+      console.log('Highest rank for this score:', highestRank);
+      return highestRank;
+    }
+    
     // If score is higher than the highest score, return rank 1
-    if (score >= sortedData[0].score) {
+    if (score > sortedData[0].score) {
+      console.log('Score higher than all data, returning rank 1');
       return 1;
     }
     
-    // If score is lower than the lowest score, return last rank + estimate
-    if (score <= sortedData[sortedData.length - 1].score) {
-      // Estimate rank beyond the data
+    // If score is lower than the lowest score, estimate rank beyond the data
+    if (score < sortedData[sortedData.length - 1].score) {
       const lastEntry = sortedData[sortedData.length - 1];
       const secondLastEntry = sortedData[sortedData.length - 2] || lastEntry;
       const scoreGap = secondLastEntry.score - lastEntry.score;
@@ -292,9 +310,13 @@ const RankDetector = () => {
       if (scoreGap > 0) {
         const scoreDiff = lastEntry.score - score;
         const estimatedRankIncrease = Math.ceil(scoreDiff / scoreGap * rankGap);
-        return lastEntry.rank + estimatedRankIncrease;
+        const estimatedRank = lastEntry.rank + estimatedRankIncrease;
+        console.log('Score lower than all data, estimated rank:', estimatedRank);
+        return estimatedRank;
       } else {
-        return lastEntry.rank + 1;
+        const fallbackRank = lastEntry.rank + 1;
+        console.log('Using fallback rank:', fallbackRank);
+        return fallbackRank;
       }
     }
     
@@ -303,24 +325,30 @@ const RankDetector = () => {
       const upper = sortedData[i];     // Higher score (better rank)
       const lower = sortedData[i + 1]; // Lower score (worse rank)
       
-      if (score <= upper.score && score >= lower.score) {
+      if (score < upper.score && score > lower.score) {
         // Linear interpolation between the two ranks
         const scoreRange = upper.score - lower.score;
         const rankRange = lower.rank - upper.rank;
         
         if (scoreRange === 0) {
-          return upper.rank;
+          const maxRank = Math.max(upper.rank, lower.rank);
+          console.log('Zero score range, using max rank:', maxRank);
+          return maxRank;
         }
         
         const ratio = (upper.score - score) / scoreRange;
         const interpolatedRank = upper.rank + (ratio * rankRange);
+        const finalRank = Math.round(interpolatedRank);
+        console.log('Interpolated rank:', finalRank);
         
-        return Math.round(interpolatedRank);
+        return finalRank;
       }
     }
     
-    // Fallback - should not reach here
-    return sortedData[sortedData.length - 1].rank + 1;
+    // Fallback
+    const fallbackRank = sortedData[sortedData.length - 1].rank + 1;
+    console.log('Fallback rank:', fallbackRank);
+    return fallbackRank;
   };
 
   const calculateScore = () => {
@@ -338,6 +366,8 @@ const RankDetector = () => {
       let wrongCount = 0;
       let skipCount = 0;
 
+      console.log('Starting calculation for squad:', squad);
+
       // Evaluate each response
       for (let i = 0; i < 18; i++) {
         const questionNum = (i + 1).toString();
@@ -349,17 +379,23 @@ const RankDetector = () => {
         else skipCount++;
       }
 
+      console.log('Response evaluation:', { correctCount, wrongCount, skipCount });
+
       // Calculate base score
       const baseScore = calculateBaseScore(correctCount, wrongCount, skipCount);
+      console.log('Base score:', baseScore);
 
       // Calculate bonuses
       const { positiveBonus, negativeBonus, levelUnlocked } = calculateBonuses(studentResponses);
+      console.log('Bonuses:', { positiveBonus, negativeBonus });
 
       // Calculate total score
       const totalScore = Math.round((baseScore + positiveBonus + negativeBonus) * 100) / 100;
+      console.log('Total score:', totalScore);
 
       // Find predicted rank
       const predictedRank = findRank(totalScore, squad);
+      console.log('Final predicted rank:', predictedRank);
 
       setResults({
         correct: correctCount,
