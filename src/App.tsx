@@ -88,7 +88,7 @@ const RankDetector = () => {
   useEffect(() => {
     const loadRankData = async () => {
       try {
-        const response = await fetch('/rankData.json');
+        const response = await fetch('src/rankData.json');
         if (!response.ok) {
           throw new Error('Failed to load rank data');
         }
